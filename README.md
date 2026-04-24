@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/images/clearsignal_banner.png" alt="ClearSignal banner" width="100%">
+</p>
+
 # ClearSignal
 
 ClearSignal turns simple daily medication check-ins into structured insights and clinician-ready weekly summaries.
