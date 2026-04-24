@@ -71,7 +71,7 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>ADHD Companion</Text>
+      <Text style={styles.title}>ClearSignal</Text>
       <Text style={styles.subtitle}>
         A calm, simple check-in for medication titration.
       </Text>

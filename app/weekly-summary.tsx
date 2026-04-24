@@ -251,32 +251,47 @@ export default function WeeklySummaryScreen() {
     return "Keep logging to build a clearer pattern before making changes.";
   }, [daysLogged, mostCommonBenefit, mostCommonIssue]);
 
-  const summaryText = useMemo(() => {
-    const lines = [
-      "ADHD Companion - Weekly Summary",
-      "",
-      `Days logged: ${daysLogged} / 7`,
-      `Medication taken: ${medicationTakenDays} days`,
-      `Most common benefit: ${mostCommonBenefit || "No clear pattern yet"}`,
-      `Most common issue: ${mostCommonIssue || "No strong issue reported"}`,
-      `Early week: ${earlyBenefit || "No clear benefit pattern"}`,
-      `Late week: ${lateBenefit || "No clear benefit pattern"}`,
-      "",
-      `Insight: ${insight}`,
-      `Guidance: ${guidance}`,
-    ];
+const summaryText = useMemo(() => {
+  const benefitLabel = mostCommonBenefit || "No clear benefit pattern yet";
+  const issueLabel = mostCommonIssue || "No strong issue reported";
+  const earlyLabel = earlyBenefit || "No clear benefit pattern";
+  const lateLabel = lateBenefit || "No clear benefit pattern";
 
-    return lines.join("\n");
-  }, [
-    daysLogged,
-    medicationTakenDays,
-    mostCommonBenefit,
-    mostCommonIssue,
-    earlyBenefit,
-    lateBenefit,
+  const lines = [
+    "ADHD Companion - Weekly Summary",
+    "",
+    "Data completeness:",
+    `- ${daysLogged} of 7 days logged`,
+    `- Medication taken on ${medicationTakenDays} logged day${
+      medicationTakenDays === 1 ? "" : "s"
+    }`,
+    "",
+    "Effect summary:",
+    `- Consistent benefit: ${benefitLabel}`,
+    `- Main issue signal: ${issueLabel}`,
+    "",
+    "Pattern across the week:",
+    `- Early week: ${earlyLabel}`,
+    `- Late week: ${lateLabel}`,
+    "",
+    "Interpretation:",
     insight,
+    "",
+    "Guidance for discussion:",
     guidance,
-  ]);
+  ];
+
+  return lines.join("\n");
+}, [
+  daysLogged,
+  medicationTakenDays,
+  mostCommonBenefit,
+  mostCommonIssue,
+  earlyBenefit,
+  lateBenefit,
+  insight,
+  guidance,
+]);
 
   const handleExport = useCallback(async () => {
     try {

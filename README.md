@@ -1,50 +1,67 @@
-# Welcome to your Expo app 👋
+# ClearSignal
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+ClearSignal turns simple daily medication check-ins into structured insights and clinician-ready weekly summaries.
 
-## Get started
+Built as a lightweight tool to support medication titration, it helps surface meaningful patterns from subjective daily data without overwhelming the user.
 
-1. Install dependencies
+---
 
-   ```bash
-   npm install
-   ```
+## Why this exists
 
-2. Start the app
+Medication titration is often guided by vague, inconsistent feedback:
 
-   ```bash
-   npx expo start
-   ```
+- "It kind of helped"
+- "Felt a bit off"
+- "Hard to tell"
 
-In the output, you'll find options to open the app in a
+ClearSignal solves this by:
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+- Structuring daily check-ins into consistent signals  
+- Tracking both **benefits** and **side effects**  
+- Highlighting **patterns across time**  
+- Producing **clear summaries for discussion with clinicians**
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+---
 
-## Get a fresh project
+## Key features
 
-When you're ready, run:
+### Daily check-ins (low friction)
+A simple, guided flow capturing:
 
-```bash
-npm run reset-project
-```
+- Medication adherence  
+- Overall effect  
+- Primary benefit domain  
+- Subjective experience  
+- End-of-day behaviour  
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+---
 
-## Learn more
+### Weekly summary (signal extraction)
+Transforms raw check-ins into:
 
-To learn more about developing your project with Expo, look at the following resources:
+- Days logged / adherence rate  
+- Most common benefit signal  
+- Most common issue signal  
+- Early vs late week pattern  
+- Interpreted insight  
+- Actionable guidance  
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+---
 
-## Join the community
+### Clinician-ready output
+Exportable summary text designed for real conversations:
 
-Join our community of developers creating universal apps.
+```text
+Data completeness:
+- 6 of 7 days logged
+- Medication taken on 6 logged days
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+Effect summary:
+- Main benefit signal: Better focus
+- Main issue signal: Flat / not myself
+
+Interpretation:
+The week shows a consistent pattern of emotional flattening, which is worth monitoring.
+
+Guidance:
+There seems to be useful effect around Better focus, but emotional flattening is now the more important discussion point.

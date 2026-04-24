@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "ADHD-companion-app",
-    "slug": "ADHD-companion-app",
+    "name": "ClearSignal",
+    "slug": "ClearSignal",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "adhdcompanionapp",
+    "scheme": "ClearSignal",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
