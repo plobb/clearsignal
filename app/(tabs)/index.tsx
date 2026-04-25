@@ -3,10 +3,13 @@ import { useFocusEffect } from "@react-navigation/native";
 import { router } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { DEFAULT_TEMPLATE, getTemplateById, type CheckInTemplate } from "../../data/templates";
 
 type LatestCheckIn = {
   date?: string;
   day?: string;
+  templateId?: string;
+  templateName?: string;
   overall_effect?: string;
   benefit_domain?: string;
   effect_feel?: string;
@@ -20,12 +23,19 @@ type CheckIn = {
 export default function HomeScreen() {
   const [latestCheckIn, setLatestCheckIn] = useState<LatestCheckIn | null>(null);
   const [weeklyCount, setWeeklyCount] = useState(0);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
+  const [activeTemplate, setActiveTemplate] =
+    useState<CheckInTemplate>(DEFAULT_TEMPLATE);
 
   useFocusEffect(
     useCallback(() => {
       const loadData = async () => {
         const latest = await AsyncStorage.getItem("latestCheckIn");
         const rawCheckIns = await AsyncStorage.getItem("checkIns");
+        const selectedTemplateId = await AsyncStorage.getItem("selectedTemplateId");
+        setSelectedTemplateId(selectedTemplateId);
+
+        setActiveTemplate(getTemplateById(selectedTemplateId));
 
         if (latest) {
           setLatestCheckIn(JSON.parse(latest));
@@ -35,7 +45,20 @@ export default function HomeScreen() {
 
         if (rawCheckIns) {
           const parsed: CheckIn[] = JSON.parse(rawCheckIns);
-          setWeeklyCount(parsed.slice(-7).length);
+
+          const activeTemplateId = getTemplateById(selectedTemplateId).id;
+
+          const filtered = parsed.filter((entry: any) => {
+            if (entry.templateId) {
+              return entry.templateId === activeTemplateId;
+            }
+
+            // Legacy entries were created before templateId existed.
+            // Treat them as belonging to the default ADHD template.
+            return activeTemplateId === DEFAULT_TEMPLATE.id;
+          });
+
+          setWeeklyCount(filtered.slice(-7).length);
         } else {
           setWeeklyCount(0);
         }
@@ -63,17 +86,26 @@ export default function HomeScreen() {
     : "Start today's check-in";
 
   const microcopy = useMemo(() => {
-    if (weeklyCount === 0) return "Your first few check-ins will create the first useful signal.";
-    if (weeklyCount < 3) return "You are building the first pattern.";
-    if (weeklyCount < 5) return "The picture is starting to sharpen.";
+    if (weeklyCount === 0) {
+      return `No data yet for ${activeTemplate.name}. Start logging to build the first pattern.`;
+    }
+
+    if (weeklyCount < 3) {
+      return `You are building the first ${activeTemplate.name} pattern.`;
+    }
+
+    if (weeklyCount < 5) {
+      return "The picture is starting to sharpen.";
+    }
+
     return "You have enough data here to make the weekly summary meaningful.";
-  }, [weeklyCount]);
+  }, [activeTemplate.name, weeklyCount]);
 
   return (
     <View style={styles.container}>
       <Text style={styles.title}>ClearSignal</Text>
       <Text style={styles.subtitle}>
-        A calm, simple check-in for medication titration.
+        A calm, simple check-in for medication response tracking.
       </Text>
 
       <View style={styles.card}>
@@ -91,8 +123,25 @@ export default function HomeScreen() {
 
       <View style={styles.miniCard}>
         <Text style={styles.miniCardTitle}>Pattern building</Text>
-        <Text style={styles.miniCardValue}>{weeklyCount} check-in{weeklyCount === 1 ? "" : "s"} logged</Text>
+        <Text style={styles.miniCardValue}>
+          {weeklyCount === 0
+            ? "No check-ins yet"
+            : `${weeklyCount} check-in${weeklyCount === 1 ? "" : "s"} logged`}
+        </Text>
         <Text style={styles.miniCardSubtle}>{microcopy}</Text>
+      </View>
+
+      <View style={styles.miniCard}>
+        <Text style={styles.miniCardTitle}>Current template</Text>
+        <Text style={styles.miniCardValue}>{activeTemplate.name}</Text>
+        <Text style={styles.miniCardSubtle}>{activeTemplate.description}</Text>
+
+        <Pressable
+          style={styles.secondaryButton}
+          onPress={() => router.push("/select-template")}
+        >
+          <Text style={styles.secondaryButtonText}>Change template</Text>
+        </Pressable>
       </View>
 
       <Pressable
@@ -206,6 +255,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderRadius: 16,
     alignItems: "center",
+    marginTop: 8,
   },
   secondaryButtonText: {
     color: "#E2E8F0",

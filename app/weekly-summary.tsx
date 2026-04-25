@@ -12,10 +12,17 @@ import {
   Text,
   View,
 } from "react-native";
+import {
+  DEFAULT_TEMPLATE,
+  getTemplateById,
+  type CheckInTemplate,
+} from "../data/templates";
 
 type CheckIn = {
   date?: string;
   day?: string;
+  templateId?: string;
+  templateName?: string;
   dose_taken?: string;
   overall_effect?: string;
   benefit_domain?: string;
@@ -43,11 +50,29 @@ function mostCommon(values: string[]) {
 
 const ISSUE_WEIGHTS: Record<string, number> = {
   "Flat / not myself": 3,
+  "Emotionally flat": 3,
   "Too rough / jittery": 3,
+  "More anxious / activated": 3,
+  "Tired / foggy": 2,
+  "Nausea / stomach upset": 2,
   "Wore off too early": 2,
+  "Dipped later": 2,
   "Crashed / got snappy": 2,
+  "Felt restless later": 2,
   "Lasted too long / affected sleep": 2,
+  "Affected sleep": 2,
 };
+
+const NON_ISSUE_EFFECTS = new Set([
+  "Smooth and calm",
+  "No major downside",
+  "No real effect",
+]);
+
+const NON_ISSUE_LATER_DAY = new Set([
+  "Stayed steady",
+  "Couldn't tell",
+]);
 
 function highestWeightedIssue(values: string[]) {
   if (values.length === 0) return null;
@@ -73,13 +98,54 @@ function formatDateLabel(iso?: string) {
   });
 }
 
+function getIssueCategory(issue: string | null) {
+  if (!issue) return "none";
+
+  if (issue === "Flat / not myself" || issue === "Emotionally flat") {
+    return "flattening";
+  }
+
+  if (issue === "Too rough / jittery" || issue === "More anxious / activated") {
+    return "activation";
+  }
+
+  if (issue === "Wore off too early" || issue === "Dipped later") {
+    return "duration";
+  }
+
+  if (issue === "Crashed / got snappy" || issue === "Felt restless later") {
+    return "rebound";
+  }
+
+  if (issue === "Lasted too long / affected sleep" || issue === "Affected sleep") {
+    return "sleep";
+  }
+
+  if (issue === "Tired / foggy") {
+    return "foggy";
+  }
+
+  if (issue === "Nausea / stomach upset") {
+    return "nausea";
+  }
+
+  return "other";
+}
+
 export default function WeeklySummaryScreen() {
   const [checkIns, setCheckIns] = useState<CheckIn[]>([]);
+  const [activeTemplate, setActiveTemplate] =
+    useState<CheckInTemplate>(DEFAULT_TEMPLATE);
 
   useFocusEffect(
     useCallback(() => {
       const loadData = async () => {
         const raw = await AsyncStorage.getItem("checkIns");
+        const selectedTemplateId = await AsyncStorage.getItem("selectedTemplateId");
+        const template = getTemplateById(selectedTemplateId);
+
+        setActiveTemplate(template);
+
         if (!raw) {
           setCheckIns([]);
           return;
@@ -87,11 +153,22 @@ export default function WeeklySummaryScreen() {
 
         const parsed: CheckIn[] = JSON.parse(raw);
 
-        const sorted = parsed
+        const filtered = parsed.filter((entry) => {
+          if (entry.templateId) {
+            return entry.templateId === template.id;
+          }
+
+          // Older records were created before templateId existed.
+          // Treat those as belonging to the original/default template.
+          return template.id === DEFAULT_TEMPLATE.id;
+        });
+
+        const sorted = filtered
           .filter((item) => item.date)
           .sort(
             (a, b) =>
-              new Date(b.date || "").getTime() - new Date(a.date || "").getTime()
+              new Date(b.date || "").getTime() -
+              new Date(a.date || "").getTime()
           );
 
         setCheckIns(sorted);
@@ -124,12 +201,12 @@ export default function WeeklySummaryScreen() {
     const issues = last7.flatMap((entry) => {
       const values: string[] = [];
 
-      if (entry.effect_feel === "Flat / not myself") values.push("Flat / not myself");
-      if (entry.effect_feel === "Too rough / jittery") values.push("Too rough / jittery");
-      if (entry.later_day === "Wore off too early") values.push("Wore off too early");
-      if (entry.later_day === "Crashed / got snappy") values.push("Crashed / got snappy");
-      if (entry.later_day === "Lasted too long / affected sleep") {
-        values.push("Lasted too long / affected sleep");
+      if (entry.effect_feel && !NON_ISSUE_EFFECTS.has(entry.effect_feel)) {
+        values.push(entry.effect_feel);
+      }
+
+      if (entry.later_day && !NON_ISSUE_LATER_DAY.has(entry.later_day)) {
+        values.push(entry.later_day);
       }
 
       return values;
@@ -138,8 +215,15 @@ export default function WeeklySummaryScreen() {
     return highestWeightedIssue(issues);
   }, [last7]);
 
-  const earlyWeek = useMemo(() => last7.slice(0, Math.ceil(last7.length / 2)), [last7]);
-  const lateWeek = useMemo(() => last7.slice(Math.ceil(last7.length / 2)), [last7]);
+  const earlyWeek = useMemo(
+    () => last7.slice(0, Math.ceil(last7.length / 2)),
+    [last7]
+  );
+
+  const lateWeek = useMemo(
+    () => last7.slice(Math.ceil(last7.length / 2)),
+    [last7]
+  );
 
   const earlyBenefit = useMemo(() => {
     return mostCommon(
@@ -165,48 +249,62 @@ export default function WeeklySummaryScreen() {
       : "consistent pattern";
 
   const encouragement = useMemo(() => {
-    if (daysLogged === 0) return "No pattern yet. One check-in is enough to start.";
-    if (daysLogged < 3) return "You are building the first signal. A few more days will sharpen it.";
-    if (daysLogged < 5) return "You are building a clearer pattern now.";
+    if (daysLogged === 0) {
+      return `No data yet for ${activeTemplate.name}. Start logging to build the first pattern.`;
+    }
+
+    if (daysLogged < 3) {
+      return "You are building the first signal. A few more days will sharpen it.";
+    }
+
+    if (daysLogged < 5) {
+      return "You are building a clearer pattern now.";
+    }
+
     return "You have enough data here to have a much better titration conversation.";
-  }, [daysLogged]);
+  }, [activeTemplate.name, daysLogged]);
+
+  const issueCategory = getIssueCategory(mostCommonIssue);
 
   const insight = useMemo(() => {
     if (daysLogged === 0) {
-      return "No check-ins logged yet, so there isn't enough data to summarise.";
+      return `No ${activeTemplate.name} check-ins logged yet, so there is not enough data to summarise.`;
     }
 
     if (daysLogged < 3) {
       return "Early signal only so far. Keep logging to build a clearer weekly pattern.";
     }
 
-    if (
-      earlyBenefit &&
-      lateBenefit &&
-      earlyBenefit !== lateBenefit &&
-      lateBenefit === "No clear benefit pattern"
-    ) {
-      return `Benefit appears clearer earlier in the week, especially around ${earlyBenefit}, but becomes less distinct later in the week.`;
-    }
-
     if (earlyBenefit && lateBenefit && earlyBenefit !== lateBenefit) {
-      return `The pattern shifts across the week, from ${earlyBenefit} earlier on to ${lateBenefit} later.`;
+      return `The benefit pattern shifts across the week, from ${earlyBenefit} earlier on to ${lateBenefit} later.`;
     }
 
-    if (mostCommonIssue === "Wore off too early") {
-      return "The strongest pattern this week suggests the medication may be helping, but not covering enough of the day.";
-    }
-
-    if (mostCommonIssue === "Crashed / got snappy") {
-      return "The main concern this week is rebound or a crash later in the day.";
-    }
-
-    if (mostCommonIssue === "Too rough / jittery") {
-      return `The week shows a ${confidence} of overstimulation or roughness, even though some benefit may be present.`;
-    }
-
-    if (mostCommonIssue === "Flat / not myself") {
+    if (issueCategory === "flattening") {
       return `The week shows a ${confidence} of emotional flattening, which is worth monitoring.`;
+    }
+
+    if (issueCategory === "activation") {
+      return `The week shows a ${confidence} of activation, jitteriness, or overstimulation.`;
+    }
+
+    if (issueCategory === "duration") {
+      return `The strongest pattern this week suggests benefit may be present, but duration may be limited.`;
+    }
+
+    if (issueCategory === "rebound") {
+      return "The main concern this week is a later-day rebound or crash pattern.";
+    }
+
+    if (issueCategory === "sleep") {
+      return "The strongest issue signal this week relates to sleep or late-day over-coverage.";
+    }
+
+    if (issueCategory === "foggy") {
+      return "The week suggests tiredness or fogginess may be a limiting factor.";
+    }
+
+    if (issueCategory === "nausea") {
+      return "The week suggests nausea or stomach upset may be a notable tolerability issue.";
     }
 
     if (mostCommonBenefit) {
@@ -215,12 +313,13 @@ export default function WeeklySummaryScreen() {
 
     return "No strong positive or negative pattern stands out yet.";
   }, [
+    activeTemplate.name,
     confidence,
     daysLogged,
     earlyBenefit,
+    issueCategory,
     lateBenefit,
     mostCommonBenefit,
-    mostCommonIssue,
   ]);
 
   const guidance = useMemo(() => {
@@ -228,20 +327,32 @@ export default function WeeklySummaryScreen() {
       return "Keep logging for a few more days before drawing firm conclusions.";
     }
 
-    if (mostCommonIssue === "Flat / not myself" && mostCommonBenefit) {
-      return `There seems to be useful effect around ${mostCommonBenefit}, but emotional flattening is now the more important discussion point. This could be worth raising as a possible dose or formulation issue.`;
+    if (issueCategory === "flattening" && mostCommonBenefit) {
+      return `There seems to be useful effect around ${mostCommonBenefit}, but emotional flattening is now the more important discussion point. This could be worth raising as a possible tolerability, dose, or formulation issue.`;
     }
 
-    if (mostCommonIssue === "Too rough / jittery" && mostCommonBenefit) {
-      return `There may be some useful effect, especially around ${mostCommonBenefit}, but the main concern is tolerability. This could point to the dose feeling too strong.`;
+    if (issueCategory === "activation" && mostCommonBenefit) {
+      return `There may be useful effect around ${mostCommonBenefit}, but activation or overstimulation appears to be the limiting factor. This is worth discussing before assuming the dose is a good fit.`;
     }
 
-    if (mostCommonIssue === "Wore off too early" && mostCommonBenefit) {
+    if (issueCategory === "duration" && mostCommonBenefit) {
       return `Benefit is present, especially around ${mostCommonBenefit}, but the main issue looks like duration rather than lack of effect.`;
     }
 
-    if (mostCommonIssue === "Crashed / got snappy") {
+    if (issueCategory === "rebound") {
       return "The signal points more toward rebound later in the day than poor effectiveness overall.";
+    }
+
+    if (issueCategory === "sleep") {
+      return "Sleep impact is worth discussing, especially if it is repeated or affects next-day function.";
+    }
+
+    if (issueCategory === "foggy") {
+      return "Tiredness or fogginess may be worth discussing as a tolerability issue, especially if function is affected.";
+    }
+
+    if (issueCategory === "nausea") {
+      return "Nausea or stomach upset may be worth discussing if it persists, worsens, or affects adherence.";
     }
 
     if (!mostCommonIssue && mostCommonBenefit) {
@@ -249,53 +360,63 @@ export default function WeeklySummaryScreen() {
     }
 
     return "Keep logging to build a clearer pattern before making changes.";
-  }, [daysLogged, mostCommonBenefit, mostCommonIssue]);
+  }, [daysLogged, issueCategory, mostCommonBenefit, mostCommonIssue]);
 
-const summaryText = useMemo(() => {
-  const benefitLabel = mostCommonBenefit || "No clear benefit pattern yet";
-  const issueLabel = mostCommonIssue || "No strong issue reported";
-  const earlyLabel = earlyBenefit || "No clear benefit pattern";
-  const lateLabel = lateBenefit || "No clear benefit pattern";
+  const summaryText = useMemo(() => {
+    const benefitLabel = mostCommonBenefit || "No clear benefit pattern yet";
+    const issueLabel = mostCommonIssue || "No strong issue reported";
+    const earlyLabel = earlyBenefit || "No clear benefit pattern";
+    const lateLabel = lateBenefit || "No clear benefit pattern";
 
-  const lines = [
-    "ADHD Companion - Weekly Summary",
-    "",
-    "Data completeness:",
-    `- ${daysLogged} of 7 days logged`,
-    `- Medication taken on ${medicationTakenDays} logged day${
-      medicationTakenDays === 1 ? "" : "s"
-    }`,
-    "",
-    "Effect summary:",
-    `- Consistent benefit: ${benefitLabel}`,
-    `- Main issue signal: ${issueLabel}`,
-    "",
-    "Pattern across the week:",
-    `- Early week: ${earlyLabel}`,
-    `- Late week: ${lateLabel}`,
-    "",
-    "Interpretation:",
+    const lines = [
+      "ClearSignal - Weekly Summary",
+      "",
+      `Template: ${activeTemplate.name}`,
+      "",
+      "Data completeness:",
+      `- ${daysLogged} of 7 days logged`,
+      `- Medication taken on ${medicationTakenDays} logged day${
+        medicationTakenDays === 1 ? "" : "s"
+      }`,
+      "",
+      "Effect summary:",
+      `- Consistent benefit: ${benefitLabel}`,
+      `- Main issue signal: ${issueLabel}`,
+      "",
+      "Pattern across the week:",
+      `- Early week: ${earlyLabel}`,
+      `- Late week: ${lateLabel}`,
+      "",
+      "Interpretation:",
+      insight,
+      "",
+      "Guidance for discussion:",
+      guidance,
+      "",
+      "Note:",
+      "This summary is intended to support, not replace, discussion with a qualified clinician.",
+    ];
+
+    return lines.join("\n");
+  }, [
+    activeTemplate.name,
+    daysLogged,
+    medicationTakenDays,
+    mostCommonBenefit,
+    mostCommonIssue,
+    earlyBenefit,
+    lateBenefit,
     insight,
-    "",
-    "Guidance for discussion:",
     guidance,
-  ];
-
-  return lines.join("\n");
-}, [
-  daysLogged,
-  medicationTakenDays,
-  mostCommonBenefit,
-  mostCommonIssue,
-  earlyBenefit,
-  lateBenefit,
-  insight,
-  guidance,
-]);
+  ]);
 
   const handleExport = useCallback(async () => {
     try {
-      if (Platform.OS === "web" && typeof navigator !== "undefined" && navigator.clipboard) {
+      if (
+        Platform.OS === "web" &&
+        typeof navigator !== "undefined" &&
+        navigator.clipboard
+      ) {
         await navigator.clipboard.writeText(summaryText);
         window.alert("Weekly summary copied to clipboard.");
         return;
@@ -303,7 +424,7 @@ const summaryText = useMemo(() => {
 
       await Share.share({
         message: summaryText,
-        title: "ADHD Companion Weekly Summary",
+        title: "ClearSignal Weekly Summary",
       });
     } catch (error) {
       Alert.alert("Export failed", "Could not export the weekly summary.");
@@ -318,9 +439,17 @@ const summaryText = useMemo(() => {
       </Text>
 
       <View style={styles.card}>
+        <Text style={styles.cardHeading}>Template</Text>
+        <Text style={styles.metric}>{activeTemplate.name}</Text>
+        <Text style={styles.note}>{activeTemplate.description}</Text>
+      </View>
+
+      <View style={styles.card}>
         <Text style={styles.cardHeading}>Overview</Text>
         <Text style={styles.metric}>Days logged: {daysLogged} / 7</Text>
-        <Text style={styles.metric}>Medication taken: {medicationTakenDays} days</Text>
+        <Text style={styles.metric}>
+          Medication taken: {medicationTakenDays} days
+        </Text>
         <Text style={styles.note}>{encouragement}</Text>
       </View>
 
@@ -363,7 +492,7 @@ const summaryText = useMemo(() => {
       <View style={styles.card}>
         <Text style={styles.cardHeading}>Last 7 check-ins</Text>
         {last7.length === 0 ? (
-          <Text style={styles.metric}>No check-ins yet.</Text>
+          <Text style={styles.metric}>No check-ins yet for this template.</Text>
         ) : (
           last7.map((entry, index) => (
             <View key={`${entry.date}-${index}`} style={styles.entryRow}>

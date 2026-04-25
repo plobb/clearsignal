@@ -1,19 +1,33 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { CHECK_IN_QUESTIONS } from "../data/questions";
+import { DEFAULT_TEMPLATE, getTemplateById, type CheckInTemplate } from "../data/templates";
 
 type CheckInAnswers = Record<string, string>;
 
 export default function CheckInScreen() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<CheckInAnswers>({});
+  const [activeTemplate, setActiveTemplate] =
+    useState<CheckInTemplate>(DEFAULT_TEMPLATE);
 
-  const question = CHECK_IN_QUESTIONS[currentIndex];
-  const isComplete = currentIndex >= CHECK_IN_QUESTIONS.length;
+  useEffect(() => {
+    const loadTemplate = async () => {
+      const selectedTemplateId = await AsyncStorage.getItem("selectedTemplateId");
+      setActiveTemplate(getTemplateById(selectedTemplateId));
+    };
+
+    loadTemplate();
+  }, []);
+
+  const questions = activeTemplate.questions;
+  const question = questions[currentIndex];
+  const isComplete = currentIndex >= questions.length;
 
   const handleAnswer = async (answer: string) => {
+    if (!question) return;
+
     const updatedAnswers = {
       ...answers,
       [question.id]: answer,
@@ -21,13 +35,13 @@ export default function CheckInScreen() {
 
     setAnswers(updatedAnswers);
 
-    if (currentIndex === CHECK_IN_QUESTIONS.length - 1) {
-      const now = new Date();
-
+    if (currentIndex === questions.length - 1) {
       const finalAnswers = {
         ...updatedAnswers,
-        date: now.toISOString(),
-        day: now.toDateString(),
+        date: new Date().toISOString(),
+        day: new Date().toDateString(),
+        templateId: activeTemplate.id,
+        templateName: activeTemplate.name,
       };
 
       const existing = await AsyncStorage.getItem("checkIns");
@@ -45,14 +59,21 @@ export default function CheckInScreen() {
     }
   };
 
+  const completionRows = useMemo(() => {
+    return Object.entries(answers).filter(
+      ([key]) => !["date", "day", "templateId", "templateName"].includes(key)
+    );
+  }, [answers]);
+
   if (isComplete) {
     return (
       <View style={styles.container}>
         <Text style={styles.title}>Check-in complete</Text>
         <Text style={styles.subtitle}>Nice. You logged today's check-in.</Text>
+        <Text style={styles.templateLabel}>{activeTemplate.name}</Text>
 
         <View style={styles.card}>
-          {Object.entries(answers).map(([key, value]) => (
+          {completionRows.map(([key, value]) => (
             <View key={key} style={styles.answerRow}>
               <Text style={styles.answerKey}>{key}</Text>
               <Text style={styles.answerValue}>{value}</Text>
@@ -70,22 +91,31 @@ export default function CheckInScreen() {
     );
   }
 
+  if (!question) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.title}>Loading check-in...</Text>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <Text style={styles.progress}>
-        Question {currentIndex + 1} of {CHECK_IN_QUESTIONS.length}
+        Question {currentIndex + 1} of {questions.length}
       </Text>
 
+      <Text style={styles.templateLabel}>{activeTemplate.name}</Text>
       <Text style={styles.title}>{question.prompt}</Text>
 
       <View style={styles.optionsContainer}>
         {question.options.map((option) => (
           <Pressable
-            key={option}
+            key={option.value}
             style={styles.optionButton}
-            onPress={() => handleAnswer(option)}
+            onPress={() => handleAnswer(option.label)}
           >
-            <Text style={styles.optionText}>{option}</Text>
+            <Text style={styles.optionText}>{option.label}</Text>
           </Pressable>
         ))}
       </View>
@@ -105,6 +135,12 @@ const styles = StyleSheet.create({
     color: "#94A3B8",
     marginBottom: 12,
   },
+  templateLabel: {
+    fontSize: 14,
+    color: "#A78BFA",
+    marginBottom: 12,
+    fontWeight: "600",
+  },
   title: {
     fontSize: 30,
     fontWeight: "700",
@@ -114,7 +150,7 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 17,
     color: "#CBD5E1",
-    marginBottom: 24,
+    marginBottom: 12,
   },
   optionsContainer: {
     gap: 12,
