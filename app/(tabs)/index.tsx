@@ -16,39 +16,28 @@ type LatestCheckIn = {
   later_day?: string;
 };
 
-type CheckIn = {
-  date?: string;
-};
+type CheckIn = LatestCheckIn;
 
 export default function HomeScreen() {
   const [latestCheckIn, setLatestCheckIn] = useState<LatestCheckIn | null>(null);
   const [weeklyCount, setWeeklyCount] = useState(0);
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [activeTemplate, setActiveTemplate] =
     useState<CheckInTemplate>(DEFAULT_TEMPLATE);
 
   useFocusEffect(
     useCallback(() => {
       const loadData = async () => {
-        const latest = await AsyncStorage.getItem("latestCheckIn");
         const rawCheckIns = await AsyncStorage.getItem("checkIns");
         const selectedTemplateId = await AsyncStorage.getItem("selectedTemplateId");
-        setSelectedTemplateId(selectedTemplateId);
+        const template = getTemplateById(selectedTemplateId);
+        const activeTemplateId = template.id;
 
-        setActiveTemplate(getTemplateById(selectedTemplateId));
-
-        if (latest) {
-          setLatestCheckIn(JSON.parse(latest));
-        } else {
-          setLatestCheckIn(null);
-        }
+        setActiveTemplate(template);
 
         if (rawCheckIns) {
           const parsed: CheckIn[] = JSON.parse(rawCheckIns);
 
-          const activeTemplateId = getTemplateById(selectedTemplateId).id;
-
-          const filtered = parsed.filter((entry: any) => {
+          const filtered = parsed.filter((entry) => {
             if (entry.templateId) {
               return entry.templateId === activeTemplateId;
             }
@@ -58,12 +47,21 @@ export default function HomeScreen() {
             return activeTemplateId === DEFAULT_TEMPLATE.id;
           });
 
-          setWeeklyCount(filtered.slice(-7).length);
+          const sorted = filtered
+            .filter((entry) => entry.date)
+            .sort(
+              (a, b) =>
+                new Date(b.date || "").getTime() -
+                new Date(a.date || "").getTime()
+            );
+
+          setLatestCheckIn(sorted[0] ?? null);
+          setWeeklyCount(sorted.slice(0, 7).length);
         } else {
+          setLatestCheckIn(null);
           setWeeklyCount(0);
         }
       };
-
       loadData();
     }, [])
   );

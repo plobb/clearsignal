@@ -113,7 +113,7 @@ export default function CheckInScreen() {
           <Pressable
             key={option.value}
             style={styles.optionButton}
-            onPress={() => handleAnswer(option.label)}
+            onPress={() => handleAnswer(option.value)}
           >
             <Text style={styles.optionText}>{option.label}</Text>
           </Pressable>
