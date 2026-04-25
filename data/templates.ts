@@ -10,6 +10,7 @@ export type AnswerOption = {
   value: string;
   signalType?: SignalType;
   weight?: number;
+  category?: string;
 };
 
 export type CheckInQuestion = {
@@ -147,18 +148,21 @@ export const ADHD_TITRATION_TEMPLATE: CheckInTemplate = {
           value: "intense",
           signalType: "issue",
           weight: 1,
+          category: "activation",
         },
         {
           label: "Flat / not myself",
           value: "flat",
           signalType: "issue",
           weight: 3,
+          category: "flattening",
         },
         {
           label: "Too rough / jittery",
           value: "jittery",
           signalType: "issue",
           weight: 3,
+          category: "activation",
         },
         {
           label: "No real effect",
@@ -183,12 +187,14 @@ export const ADHD_TITRATION_TEMPLATE: CheckInTemplate = {
           value: "wore_off_early",
           signalType: "duration",
           weight: 2,
+          category: "duration",
         },
         {
           label: "Crashed / got snappy",
           value: "crash_snappy",
           signalType: "duration",
           weight: 2,
+          category: "rebound",
         },
         {
           label: "Couldn't tell",
@@ -201,6 +207,7 @@ export const ADHD_TITRATION_TEMPLATE: CheckInTemplate = {
           value: "too_long_sleep",
           signalType: "duration",
           weight: 2,
+          category: "sleep",
         },
       ],
     },
@@ -330,24 +337,28 @@ export const MOOD_MEDICATION_TEMPLATE: CheckInTemplate = {
           value: "flat",
           signalType: "issue",
           weight: 3,
+          category: "flattening",
         },
         {
           label: "More anxious / activated",
           value: "activated",
           signalType: "issue",
           weight: 3,
+          category: "activation",
         },
         {
           label: "Tired / foggy",
           value: "foggy",
           signalType: "issue",
           weight: 2,
+          category: "foggy",
         },
         {
           label: "Nausea / stomach upset",
           value: "nausea",
           signalType: "issue",
           weight: 2,
+          category: "nausea",
         },
       ],
     },
@@ -366,12 +377,14 @@ export const MOOD_MEDICATION_TEMPLATE: CheckInTemplate = {
           value: "dipped_later",
           signalType: "duration",
           weight: 2,
+          category: "duration",
         },
         {
           label: "Felt restless later",
           value: "restless_later",
           signalType: "duration",
           weight: 2,
+          category: "rebound",
         },
         {
           label: "Couldn't tell",
@@ -384,6 +397,7 @@ export const MOOD_MEDICATION_TEMPLATE: CheckInTemplate = {
           value: "sleep_affected",
           signalType: "duration",
           weight: 2,
+          category: "sleep",
         },
       ],
     },

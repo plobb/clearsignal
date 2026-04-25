@@ -30,61 +30,70 @@ type CheckIn = {
   later_day?: string;
 };
 
-function countValues(values: string[]) {
-  const counts: Record<string, number> = {};
-
-  for (const value of values) {
-    counts[value] = (counts[value] || 0) + 1;
-  }
-
-  return counts;
-}
-
-function mostCommon(values: string[]) {
-  if (values.length === 0) return null;
-
-  const counts = countValues(values);
-
-  return Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0];
-}
-
-const ISSUE_WEIGHTS: Record<string, number> = {
-  "Flat / not myself": 3,
-  "Emotionally flat": 3,
-  "Too rough / jittery": 3,
-  "More anxious / activated": 3,
-  "Tired / foggy": 2,
-  "Nausea / stomach upset": 2,
-  "Wore off too early": 2,
-  "Dipped later": 2,
-  "Crashed / got snappy": 2,
-  "Felt restless later": 2,
-  "Lasted too long / affected sleep": 2,
-  "Affected sleep": 2,
+type SignalSummary = {
+  label: string;
+  value: string;
+  score: number;
+  category?: string;
 };
 
-const NON_ISSUE_EFFECTS = new Set([
-  "Smooth and calm",
-  "No major downside",
-  "No real effect",
-]);
+function getTemplateOption(
+  template: CheckInTemplate,
+  questionId: string,
+  storedAnswer: string
+) {
+  const question = template.questions.find((item) => item.id === questionId);
+  return question?.options.find(
+    (option) => option.label === storedAnswer || option.value === storedAnswer
+  );
+}
 
-const NON_ISSUE_LATER_DAY = new Set([
-  "Stayed steady",
-  "Couldn't tell",
-]);
+function formatStoredAnswer(
+  template: CheckInTemplate,
+  questionId: string,
+  storedAnswer?: string
+) {
+  if (!storedAnswer) return "N/A";
 
-function highestWeightedIssue(values: string[]) {
-  if (values.length === 0) return null;
+  return getTemplateOption(template, questionId, storedAnswer)?.label ?? storedAnswer;
+}
 
-  const scores: Record<string, number> = {};
+function strongestSignal(
+  entries: CheckIn[],
+  template: CheckInTemplate,
+  signalTypes: string[],
+  excludeZeroWeight = true
+): SignalSummary | null {
+  const scores: Record<string, SignalSummary> = {};
 
-  for (const value of values) {
-    const weight = ISSUE_WEIGHTS[value] ?? 1;
-    scores[value] = (scores[value] || 0) + weight;
+  for (const entry of entries) {
+    for (const question of template.questions) {
+      const storedAnswer = entry[question.id as keyof CheckIn];
+
+      if (typeof storedAnswer !== "string") continue;
+
+      const option = getTemplateOption(template, question.id, storedAnswer);
+
+      if (!option?.signalType || !signalTypes.includes(option.signalType)) {
+        continue;
+      }
+
+      const weight = option.weight ?? 1;
+
+      if (excludeZeroWeight && weight === 0) continue;
+
+      const key = option.value;
+
+      scores[key] = {
+        label: option.label,
+        value: option.value,
+        category: option.category,
+        score: (scores[key]?.score ?? 0) + weight,
+      };
+    }
   }
 
-  return Object.entries(scores).sort((a, b) => b[1] - a[1])[0][0];
+  return Object.values(scores).sort((a, b) => b.score - a.score)[0] ?? null;
 }
 
 function formatDateLabel(iso?: string) {
@@ -96,40 +105,6 @@ function formatDateLabel(iso?: string) {
     day: "numeric",
     month: "short",
   });
-}
-
-function getIssueCategory(issue: string | null) {
-  if (!issue) return "none";
-
-  if (issue === "Flat / not myself" || issue === "Emotionally flat") {
-    return "flattening";
-  }
-
-  if (issue === "Too rough / jittery" || issue === "More anxious / activated") {
-    return "activation";
-  }
-
-  if (issue === "Wore off too early" || issue === "Dipped later") {
-    return "duration";
-  }
-
-  if (issue === "Crashed / got snappy" || issue === "Felt restless later") {
-    return "rebound";
-  }
-
-  if (issue === "Lasted too long / affected sleep" || issue === "Affected sleep") {
-    return "sleep";
-  }
-
-  if (issue === "Tired / foggy") {
-    return "foggy";
-  }
-
-  if (issue === "Nausea / stomach upset") {
-    return "nausea";
-  }
-
-  return "other";
 }
 
 export default function WeeklySummaryScreen() {
@@ -182,38 +157,26 @@ export default function WeeklySummaryScreen() {
   const daysLogged = last7.length;
 
   const medicationTakenDays = useMemo(() => {
-    return last7.filter(
-      (entry) =>
-        entry.dose_taken === "Yes, as planned" ||
-        entry.dose_taken === "Yes, but later than planned"
-    ).length;
-  }, [last7]);
+    return last7.filter((entry) => {
+      if (!entry.dose_taken) return false;
 
-  const mostCommonBenefit = useMemo(() => {
-    return mostCommon(
-      last7
-        .map((entry) => entry.benefit_domain)
-        .filter((v): v is string => !!v && v !== "No clear improvement")
-    );
-  }, [last7]);
+      const option = getTemplateOption(activeTemplate, "dose_taken", entry.dose_taken);
 
-  const mostCommonIssue = useMemo(() => {
-    const issues = last7.flatMap((entry) => {
-      const values: string[] = [];
+      return option?.value === "yes_planned" || option?.value === "yes_late";
+    }).length;
+  }, [activeTemplate, last7]);
 
-      if (entry.effect_feel && !NON_ISSUE_EFFECTS.has(entry.effect_feel)) {
-        values.push(entry.effect_feel);
-      }
+  const mostCommonBenefitSignal = useMemo(() => {
+    return strongestSignal(last7, activeTemplate, ["benefit"]);
+  }, [activeTemplate, last7]);
 
-      if (entry.later_day && !NON_ISSUE_LATER_DAY.has(entry.later_day)) {
-        values.push(entry.later_day);
-      }
+  const mostCommonBenefit = mostCommonBenefitSignal?.label ?? null;
 
-      return values;
-    });
+  const mostCommonIssueSignal = useMemo(() => {
+    return strongestSignal(last7, activeTemplate, ["issue", "duration"]);
+  }, [activeTemplate, last7]);
 
-    return highestWeightedIssue(issues);
-  }, [last7]);
+  const mostCommonIssue = mostCommonIssueSignal?.label ?? null;
 
   const earlyWeek = useMemo(
     () => last7.slice(0, Math.ceil(last7.length / 2)),
@@ -225,21 +188,17 @@ export default function WeeklySummaryScreen() {
     [last7]
   );
 
-  const earlyBenefit = useMemo(() => {
-    return mostCommon(
-      earlyWeek
-        .map((entry) => entry.benefit_domain)
-        .filter((v): v is string => !!v && v !== "No clear improvement")
-    );
-  }, [earlyWeek]);
+  const earlyBenefitSignal = useMemo(() => {
+    return strongestSignal(earlyWeek, activeTemplate, ["benefit"]);
+  }, [activeTemplate, earlyWeek]);
 
-  const lateBenefit = useMemo(() => {
-    return mostCommon(
-      lateWeek
-        .map((entry) => entry.benefit_domain)
-        .filter((v): v is string => !!v && v !== "No clear improvement")
-    );
-  }, [lateWeek]);
+  const earlyBenefit = earlyBenefitSignal?.label ?? null;
+
+  const lateBenefitSignal = useMemo(() => {
+    return strongestSignal(lateWeek, activeTemplate, ["benefit"]);
+  }, [activeTemplate, lateWeek]);
+
+  const lateBenefit = lateBenefitSignal?.label ?? null;
 
   const confidence =
     last7.length <= 2
@@ -264,7 +223,7 @@ export default function WeeklySummaryScreen() {
     return "You have enough data here to have a much better titration conversation.";
   }, [activeTemplate.name, daysLogged]);
 
-  const issueCategory = getIssueCategory(mostCommonIssue);
+  const issueCategory = mostCommonIssueSignal?.category ?? "none";
 
   const insight = useMemo(() => {
     if (daysLogged === 0) {
@@ -498,13 +457,13 @@ export default function WeeklySummaryScreen() {
             <View key={`${entry.date}-${index}`} style={styles.entryRow}>
               <Text style={styles.entryDate}>{formatDateLabel(entry.date)}</Text>
               <Text style={styles.entryDetail}>
-                Benefit: {entry.benefit_domain || "N/A"}
+                Benefit: {formatStoredAnswer(activeTemplate, "benefit_domain", entry.benefit_domain)}
               </Text>
               <Text style={styles.entryDetail}>
-                Feel: {entry.effect_feel || "N/A"}
+                Feel: {formatStoredAnswer(activeTemplate, "effect_feel", entry.effect_feel)}
               </Text>
               <Text style={styles.entryDetail}>
-                Later: {entry.later_day || "N/A"}
+                Later: {formatStoredAnswer(activeTemplate, "later_day", entry.later_day)}
               </Text>
             </View>
           ))
