@@ -207,8 +207,192 @@ export const ADHD_TITRATION_TEMPLATE: CheckInTemplate = {
   ],
 };
 
+
+export const MOOD_MEDICATION_TEMPLATE: CheckInTemplate = {
+  id: "mood_medication",
+  name: "Mood medication titration",
+  description:
+    "Tracks daily response, mood, anxiety, tolerability, and sleep patterns during medication changes.",
+  questions: [
+    {
+      id: "dose_taken",
+      prompt: "Did you take your medication today?",
+      options: [
+        {
+          label: "Yes, as planned",
+          value: "yes_planned",
+          signalType: "adherence",
+        },
+        {
+          label: "Yes, but later than planned",
+          value: "yes_late",
+          signalType: "adherence",
+          weight: 1,
+        },
+        {
+          label: "No",
+          value: "no",
+          signalType: "adherence",
+          weight: 2,
+        },
+      ],
+    },
+    {
+      id: "overall_effect",
+      prompt: "How did today feel overall?",
+      options: [
+        {
+          label: "Clearly better",
+          value: "clear_benefit",
+          signalType: "overall_effect",
+          weight: 4,
+        },
+        {
+          label: "A bit better",
+          value: "some_benefit",
+          signalType: "overall_effect",
+          weight: 2,
+        },
+        {
+          label: "Hard to tell",
+          value: "unclear",
+          signalType: "overall_effect",
+          weight: 1,
+        },
+        {
+          label: "No real change",
+          value: "not_really",
+          signalType: "overall_effect",
+          weight: 0,
+        },
+        {
+          label: "Worse",
+          value: "worse",
+          signalType: "overall_effect",
+          weight: -2,
+        },
+      ],
+    },
+    {
+      id: "benefit_domain",
+      prompt: "What improved most today?",
+      options: [
+        {
+          label: "Mood felt lighter",
+          value: "mood_lighter",
+          signalType: "benefit",
+          weight: 2,
+        },
+        {
+          label: "Less anxious",
+          value: "less_anxious",
+          signalType: "benefit",
+          weight: 2,
+        },
+        {
+          label: "More steady",
+          value: "more_steady",
+          signalType: "benefit",
+          weight: 2,
+        },
+        {
+          label: "More energy",
+          value: "more_energy",
+          signalType: "benefit",
+          weight: 2,
+        },
+        {
+          label: "Better sleep",
+          value: "better_sleep",
+          signalType: "benefit",
+          weight: 2,
+        },
+        {
+          label: "No clear improvement",
+          value: "none",
+          signalType: "benefit",
+          weight: 0,
+        },
+      ],
+    },
+    {
+      id: "effect_feel",
+      prompt: "Any noticeable downside today?",
+      options: [
+        {
+          label: "No major downside",
+          value: "none",
+          signalType: "issue",
+          weight: 0,
+        },
+        {
+          label: "Emotionally flat",
+          value: "flat",
+          signalType: "issue",
+          weight: 3,
+        },
+        {
+          label: "More anxious / activated",
+          value: "activated",
+          signalType: "issue",
+          weight: 3,
+        },
+        {
+          label: "Tired / foggy",
+          value: "foggy",
+          signalType: "issue",
+          weight: 2,
+        },
+        {
+          label: "Nausea / stomach upset",
+          value: "nausea",
+          signalType: "issue",
+          weight: 2,
+        },
+      ],
+    },
+    {
+      id: "later_day",
+      prompt: "How was the rest of the day?",
+      options: [
+        {
+          label: "Stayed steady",
+          value: "steady",
+          signalType: "duration",
+          weight: 0,
+        },
+        {
+          label: "Dipped later",
+          value: "dipped_later",
+          signalType: "duration",
+          weight: 2,
+        },
+        {
+          label: "Felt restless later",
+          value: "restless_later",
+          signalType: "duration",
+          weight: 2,
+        },
+        {
+          label: "Couldn't tell",
+          value: "unclear",
+          signalType: "duration",
+          weight: 0,
+        },
+        {
+          label: "Affected sleep",
+          value: "sleep_affected",
+          signalType: "duration",
+          weight: 2,
+        },
+      ],
+    },
+  ],
+};
+
 export const MEDICATION_RESPONSE_TEMPLATES: CheckInTemplate[] = [
   ADHD_TITRATION_TEMPLATE,
+  MOOD_MEDICATION_TEMPLATE,
 ];
 
 export const DEFAULT_TEMPLATE = ADHD_TITRATION_TEMPLATE;export type SignalType =
