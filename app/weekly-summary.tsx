@@ -28,6 +28,12 @@ type CheckIn = {
   benefit_domain?: string;
   effect_feel?: string;
   later_day?: string;
+  [key: string]: string | undefined;
+};
+
+type AdherenceSummary = {
+  label: string;
+  detail: string;
 };
 
 type SignalSummary = {
@@ -56,6 +62,103 @@ function formatStoredAnswer(
   if (!storedAnswer) return "N/A";
 
   return getTemplateOption(template, questionId, storedAnswer)?.label ?? storedAnswer;
+}
+
+function formatAdherenceLabel(prompt: string) {
+  return prompt
+    .replace(/^Did you take your /, "")
+    .replace(/^Did you take /, "")
+    .replace(/ today\?$/, "")
+    .replace(/^regular /, "Regular ");
+}
+
+function getAdherenceSummaries(
+  entries: CheckIn[],
+  template: CheckInTemplate
+): AdherenceSummary[] {
+  return template.questions
+    .filter((question) =>
+      question.options.some((option) => option.signalType === "adherence")
+    )
+    .map((question) => {
+      let takenDays = 0;
+      let notNeededDays = 0;
+      let neededNotTakenDays = 0;
+      let forgotAvoidedDays = 0;
+
+      for (const entry of entries) {
+        const storedAnswer = entry[question.id];
+
+        if (!storedAnswer) continue;
+
+        const option = getTemplateOption(template, question.id, storedAnswer);
+
+        if (
+          option?.value === "yes" ||
+          option?.value === "yes_planned" ||
+          option?.value === "yes_late"
+        ) {
+          takenDays += 1;
+        }
+
+        if (option?.value === "not_needed") {
+          notNeededDays += 1;
+        }
+
+        if (option?.value === "needed_not_taken") {
+          neededNotTakenDays += 1;
+        }
+
+        if (option?.value === "forgot_avoided") {
+          forgotAvoidedDays += 1;
+        }
+      }
+
+      const label =
+        question.id === "dose_taken"
+          ? "Medication"
+          : formatAdherenceLabel(question.prompt);
+
+      const hasPrnOptions = question.options.some(
+        (option) =>
+          option.value === "not_needed" ||
+          option.value === "needed_not_taken" ||
+          option.value === "forgot_avoided"
+      );
+
+      if (hasPrnOptions) {
+        const parts = [
+          `used ${takenDays} day${takenDays === 1 ? "" : "s"}`,
+          `not needed ${notNeededDays} day${notNeededDays === 1 ? "" : "s"}`,
+        ];
+
+        if (neededNotTakenDays > 0) {
+          parts.push(
+            `needed but not taken ${neededNotTakenDays} day${
+              neededNotTakenDays === 1 ? "" : "s"
+            }`
+          );
+        }
+
+        if (forgotAvoidedDays > 0) {
+          parts.push(
+            `forgot / avoided ${forgotAvoidedDays} day${
+              forgotAvoidedDays === 1 ? "" : "s"
+            }`
+          );
+        }
+
+        return {
+          label,
+          detail: parts.join(", "),
+        };
+      }
+
+      return {
+        label,
+        detail: `${takenDays} day${takenDays === 1 ? "" : "s"}`,
+      };
+    });
 }
 
 function strongestSignal(
@@ -156,14 +259,8 @@ export default function WeeklySummaryScreen() {
   const last7 = useMemo(() => checkIns.slice(0, 7), [checkIns]);
   const daysLogged = last7.length;
 
-  const medicationTakenDays = useMemo(() => {
-    return last7.filter((entry) => {
-      if (!entry.dose_taken) return false;
-
-      const option = getTemplateOption(activeTemplate, "dose_taken", entry.dose_taken);
-
-      return option?.value === "yes_planned" || option?.value === "yes_late";
-    }).length;
+  const adherenceSummaries = useMemo(() => {
+    return getAdherenceSummaries(last7, activeTemplate);
   }, [activeTemplate, last7]);
 
   const mostCommonBenefitSignal = useMemo(() => {
@@ -326,17 +423,19 @@ export default function WeeklySummaryScreen() {
     const issueLabel = mostCommonIssue || "No strong issue reported";
     const earlyLabel = earlyBenefit || "No clear benefit pattern";
     const lateLabel = lateBenefit || "No clear benefit pattern";
+    const adherenceLines =
+      adherenceSummaries.length > 0
+        ? adherenceSummaries.map((item) => `- ${item.label}: ${item.detail}`)
+        : ["- Medication taken: no adherence data"];
 
     const lines = [
       "ClearSignal - Weekly Summary",
       "",
-      `Template: ${activeTemplate.name}`,
+      `Tracking plan: ${activeTemplate.name}`,
       "",
       "Data completeness:",
       `- ${daysLogged} of 7 days logged`,
-      `- Medication taken on ${medicationTakenDays} logged day${
-        medicationTakenDays === 1 ? "" : "s"
-      }`,
+      ...adherenceLines,
       "",
       "Effect summary:",
       `- Consistent benefit: ${benefitLabel}`,
@@ -359,8 +458,8 @@ export default function WeeklySummaryScreen() {
     return lines.join("\n");
   }, [
     activeTemplate.name,
+    adherenceSummaries,
     daysLogged,
-    medicationTakenDays,
     mostCommonBenefit,
     mostCommonIssue,
     earlyBenefit,
@@ -398,7 +497,7 @@ export default function WeeklySummaryScreen() {
       </Text>
 
       <View style={styles.card}>
-        <Text style={styles.cardHeading}>Template</Text>
+        <Text style={styles.cardHeading}>Tracking plan</Text>
         <Text style={styles.metric}>{activeTemplate.name}</Text>
         <Text style={styles.note}>{activeTemplate.description}</Text>
       </View>
@@ -406,9 +505,15 @@ export default function WeeklySummaryScreen() {
       <View style={styles.card}>
         <Text style={styles.cardHeading}>Overview</Text>
         <Text style={styles.metric}>Days logged: {daysLogged} / 7</Text>
-        <Text style={styles.metric}>
-          Medication taken: {medicationTakenDays} days
-        </Text>
+        {adherenceSummaries.length === 0 ? (
+          <Text style={styles.metric}>Medication taken: no adherence data</Text>
+        ) : (
+          adherenceSummaries.map((item) => (
+            <Text key={item.label} style={styles.metric}>
+              {item.label}: {item.detail}
+            </Text>
+          ))
+        )}
         <Text style={styles.note}>{encouragement}</Text>
       </View>
 
@@ -451,7 +556,7 @@ export default function WeeklySummaryScreen() {
       <View style={styles.card}>
         <Text style={styles.cardHeading}>Last 7 check-ins</Text>
         {last7.length === 0 ? (
-          <Text style={styles.metric}>No check-ins yet for this template.</Text>
+          <Text style={styles.metric}>No check-ins yet for this tracking plan.</Text>
         ) : (
           last7.map((entry, index) => (
             <View key={`${entry.date}-${index}`} style={styles.entryRow}>

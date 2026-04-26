@@ -130,7 +130,7 @@ export default function HomeScreen() {
       </View>
 
       <View style={styles.miniCard}>
-        <Text style={styles.miniCardTitle}>Current template</Text>
+        <Text style={styles.miniCardTitle}>Current tracking plan</Text>
         <Text style={styles.miniCardValue}>{activeTemplate.name}</Text>
         <Text style={styles.miniCardSubtle}>{activeTemplate.description}</Text>
 
@@ -138,7 +138,7 @@ export default function HomeScreen() {
           style={styles.secondaryButton}
           onPress={() => router.push("/select-template")}
         >
-          <Text style={styles.secondaryButtonText}>Change template</Text>
+          <Text style={styles.secondaryButtonText}>Change tracking plan</Text>
         </Pressable>
       </View>
 

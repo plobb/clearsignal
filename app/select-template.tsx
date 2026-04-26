@@ -24,9 +24,9 @@ export default function SelectTemplateScreen() {
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.title}>Choose template</Text>
+      <Text style={styles.title}>Choose tracking plan</Text>
       <Text style={styles.subtitle}>
-        Pick the medication response pattern you want to track. You can change this later.
+        Pick the treatment response pattern you want to track. You can change this later.
       </Text>
 
       {MEDICATION_RESPONSE_TEMPLATES.map((template) => {
